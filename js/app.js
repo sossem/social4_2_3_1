@@ -110,14 +110,14 @@
   }
 
   function heading(n, title, lead) {
-    return '<span class="eyebrow">미션 ' + n + '</span><h2>' + esc(title) + '</h2>' +
+    return '<span class="eyebrow">' + (n >= 7 ? '마무리' : '미션 ' + n) + '</span><h2>' + esc(title) + '</h2>' +
       (lead ? '<p class="lead">' + lead + '</p>' : '');
   }
 
   // ---------- 0. 시작 ----------
   function renderStart(root) {
     var st = S();
-    var missions = ['궁금한 연못', '환경이 뭘까?', '환경의 두 가지', '환경 구분하기 (그림 지도, 카드 나누기)', '정리 퀴즈'];
+    var missions = STEPS.slice(1, 7).map(function (x) { return x.name; });
     root.innerHTML =
       '<div class="start">' +
         '<div>' +
@@ -661,15 +661,15 @@
           '<p class="badge-name">' + esc(st.student.no ? st.student.no + '번 ' : '') + esc(st.student.name) + '</p></div>' +
           '<div class="badge-score"><span>퀴즈 점수</span><strong data-testid="score">' + quizScore(q) + ' / ' + total + '</strong></div>' +
         '</div>' +
-        '<section class="rec"><h3>① 궁금한 연못</h3>' + ponds.map(function (p) {
+        '<section class="rec"><h3>궁금한 연못</h3>' + ponds.map(function (p) {
           var mine = st.intro.ponds[p[0]];
           return '<p><strong>' + p[1] + '</strong> → 정답 <span class="kind-' + p[2] + '">' + MARK[p[2]] + ' ' + LABEL[p[2]] + '</span> · ' +
             '내 생각: ' + (mine.pick === 'natural' ? '자연이 만들었어요' : mine.pick === 'human' ? '사람이 만들었어요' : '-') +
             (mine.why ? ' (' + esc(mine.why) + ')' : '') + '</p>';
         }).join('') + '</section>' +
-        '<section class="rec"><h3>④ 그림 지도</h3><p>14곳 중 <strong>' + firstTry + '곳</strong>을 한 번에 맞혔어요.</p>' +
+        '<section class="rec"><h3>그림 지도</h3><p>14곳 중 <strong>' + firstTry + '곳</strong>을 한 번에 맞혔어요.</p>' +
           '<div class="map-preview" data-testid="map-preview">' + window.Art.townMap(DATA.places) + '</div></section>' +
-        '<section class="rec"><h3>⑤ 카드 나누기</h3>' +
+        '<section class="rec"><h3>카드 나누기</h3>' +
           '<p><span class="kind-natural">○ 자연환경</span>: ' + placedBy('natural') + '</p>' +
           '<p><span class="kind-human">△ 인문환경</span>: ' + placedBy('human') + '</p></section>' +
         '<section class="rec"><h3>오늘 알게 된 점</h3>' +

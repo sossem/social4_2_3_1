@@ -28,6 +28,25 @@ async function next(page) {
 }
 async function heading(page) { return (await page.locator('#screen h2').first().innerText()).trim(); }
 
+
+// 태블릿 점검 규칙: 가로 스크롤이 없고, 44px보다 작은 누르는 곳이 없어요.
+async function layoutCheck(page) {
+  return page.evaluate(() => {
+    const problems = [];
+    const over = document.documentElement.scrollWidth - window.innerWidth;
+    if (over > 1) problems.push('가로 스크롤 ' + over + 'px');
+    document.querySelectorAll('button, a[href], input:not([type=hidden]), textarea, [role=button], [tabindex]:not([tabindex="-1"])').forEach(el => {
+      const st = getComputedStyle(el);
+      if (st.display === 'none' || st.visibility === 'hidden' || el.closest('[hidden]')) return;
+      const r = el.getBoundingClientRect();
+      if (!r.width || !r.height) return;
+      if (el.id === 'screen') return;
+      if (Math.min(r.width, r.height) < 44) problems.push('작은 누르는 곳 ' + Math.round(r.width) + 'x' + Math.round(r.height) + ' ' + (el.dataset.testid || el.id || el.className || el.tagName));
+    });
+    return problems;
+  });
+}
+
 const steps = [];
 const step = (n, name, fn) => steps.push({ n, name, fn });
 
@@ -265,7 +284,7 @@ step(7, '마무리', async (page, ctx) => {
   await page.emulateMedia({ media: 'screen' });
 });
 
-module.exports = { step, steps, tid, next, heading };
+module.exports = { step, steps, tid, next, heading, layoutCheck };
 
 async function run() {
   const browser = await chromium.launch();
@@ -278,6 +297,8 @@ async function run() {
     if (s.n > UNTIL) break;
     try {
       await s.fn(page, ctx);
+      const problems = await layoutCheck(page);
+      if (problems.length) throw new Error('화면 점검: ' + problems.slice(0, 5).join(' / '));
       console.log('ok   ' + s.n + ' ' + s.name);
     } catch (e) {
       failed = true;
