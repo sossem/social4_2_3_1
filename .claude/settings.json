@@ -1,5 +1,17 @@
 {
   "env": {
     "SUPERPOWERS_DISABLE_TELEMETRY": "1"
+  },
+  "extraKnownMarketplaces": {
+    "sossem-edu": {
+      "source": {
+        "source": "github",
+        "repo": "sossem/claude_skills_for_edwepapp"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "superpowers@sossem-edu": true,
+    "edu-webapp@sossem-edu": true
   }
 }
