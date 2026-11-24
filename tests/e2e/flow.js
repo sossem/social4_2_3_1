@@ -89,6 +89,50 @@ step(3, '환경의 두 가지', async page => {
   assert.match(await heading(page), /그림 지도/);
 });
 
+const PLACES = require('../../data/places.js');
+
+async function relBox(page, id) {
+  const map = await page.locator('#town-map svg').boundingBox();
+  const b = await tid(page, 'place-' + id).boundingBox();
+  return { x: (b.x + b.width / 2 - map.x) / map.width, y: (b.y + b.height / 2 - map.y) / map.height };
+}
+
+step(4, '그림 지도', async (page) => {
+  assert.equal(await page.isDisabled('#next'), true);
+  // 논을 자연환경으로 고르면 힌트 질문, 두 번째에 인문환경이면 맞아요
+  await tid(page, 'place-paddy').tap();
+  assert.equal(await page.locator('#choice-sheet').isVisible(), true);
+  await tid(page, 'choose-natural').tap();
+  const hint = await page.locator('#feedback').innerText();
+  assert.match(hint, /\?/);
+  assert.doesNotMatch(hint, /✕/);
+  await tid(page, 'choose-human').tap();
+  assert.match(await page.locator('#feedback').innerText(), /○ 맞아요[\s\S]*벼/);
+  assert.match(await tid(page, 'mark-paddy').textContent(), /△/);
+
+  // 화면 크기가 바뀌어도 이름표가 그림의 제자리에 있다
+  const a = await relBox(page, 'mountain');
+  await page.setViewportSize({ width: 768, height: 1024 });
+  const b = await relBox(page, 'mountain');
+  await page.setViewportSize({ width: 1024, height: 768 });
+  assert.ok(Math.abs(a.x - b.x) < 0.02 && Math.abs(a.y - b.y) < 0.02, JSON.stringify({ a, b }));
+
+  for (const p of PLACES) {
+    if (p.id === 'paddy') continue;
+    await tid(page, 'place-' + p.id).tap();
+    await tid(page, 'choose-' + p.type).tap();
+  }
+  assert.equal(await page.locator('[data-testid^=mark-]').count(), 14);
+  assert.match(await tid(page, 'mark-wind').textContent(), /○/);
+
+  // 새로고침해도 표시가 그대로
+  await page.reload();
+  assert.match(await heading(page), /그림 지도/);
+  assert.equal(await page.locator('[data-testid^=mark-]').count(), 14);
+  await next(page);
+  assert.match(await heading(page), /카드 나누기/);
+});
+
 module.exports = { step, steps, tid, next, heading };
 
 async function run() {

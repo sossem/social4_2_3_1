@@ -234,6 +234,34 @@ input:focus, textarea:focus, button:focus-visible, [tabindex]:focus-visible { ou
 .pond-mine { font-weight: 600; }
 @media (max-width: 640px) { .groups { grid-template-columns: 1fr; } }
 
+
+/* 4-1 그림 지도 */
+.map-layout { display: grid; grid-template-columns: minmax(0, 2.6fr) minmax(230px, 1fr); gap: 18px; align-items: start; margin-top: 12px; }
+.town-map { border-radius: var(--radius); overflow: hidden; border: 3px solid var(--line); background: #dff1fb; }
+.town-map svg { display: block; width: 100%; height: auto; }
+.place { cursor: pointer; outline: none; }
+.place-pill { fill: #ffffff; stroke: #7a4b00; stroke-width: 3; filter: drop-shadow(0 3px 0 rgba(0,0,0,.18)); transition: transform .2s ease; }
+.place-name { font-family: var(--font-title); font-weight: 700; font-size: 26px; fill: #3d2a00; pointer-events: none; }
+.place-dot { fill: #fff6d6; stroke: #f0c35a; stroke-width: 2; }
+.place-mark { font-size: 26px; font-weight: 700; pointer-events: none; }
+.place.is-selected .place-pill, .place:focus-visible .place-pill { stroke: #8b5cf6; stroke-width: 6; }
+.place.is-natural .place-pill { fill: var(--natural-soft); stroke: var(--natural); }
+.place.is-human .place-pill { fill: var(--human-soft); stroke: var(--human); }
+.place.is-natural .place-mark { fill: var(--natural); }
+.place.is-human .place-mark { fill: var(--human); }
+.place.is-done .place-dot { fill: #ffffff; }
+.map-side { display: grid; gap: 12px; position: sticky; top: 96px; }
+.legend { font-weight: 700; font-size: 20px; margin: 0; }
+.map-progress { font-weight: 600; margin: 0; }
+.choice-sheet { background: #fff; border: 2px solid var(--line); border-radius: var(--radius); padding: 14px; display: grid; gap: 10px; }
+.choice-q { font-size: 20px; margin: 0; }
+.choice-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.choice-row .btn { min-height: 64px; font-size: 20px; }
+@media (max-width: 900px) {
+  .map-layout { grid-template-columns: 1fr; }
+  .map-side { position: static; }
+}
+
 /* 화면 폭이 좁을 때(태블릿 세로) */
 @media (max-width: 1240px) {
   /* 단계 이름은 지금 단계만 보여 준다 */

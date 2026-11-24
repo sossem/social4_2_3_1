@@ -369,6 +369,94 @@
     paint();
   }
 
+
+  // ---------- 4. 그림 지도 ----------
+  function placeDone(m) { return m && (m.correct || m.tries >= 2); }
+
+  function renderMap(root) {
+    var selected = null;
+    root.innerHTML = heading(4, '그림 지도', '이름표를 누르고 <strong>○ 자연환경</strong>인지 <strong>△ 인문환경</strong>인지 골라 봐요.') +
+      '<div class="map-layout">' +
+        '<div id="town-map" class="town-map">' + window.Art.townMap(DATA.places) + '</div>' +
+        '<aside class="map-side">' +
+          '<p class="legend"><span class="kind-natural">○ 자연환경</span> · <span class="kind-human">△ 인문환경</span></p>' +
+          '<p class="map-progress" id="map-progress"></p>' +
+          '<div id="choice-sheet" class="choice-sheet" hidden>' +
+            '<p id="choice-q" class="choice-q"></p>' +
+            '<div class="choice-row">' +
+              '<button type="button" class="btn btn-natural" data-testid="choose-natural" data-choose="natural">○ 자연환경</button>' +
+              '<button type="button" class="btn btn-human" data-testid="choose-human" data-choose="human">△ 인문환경</button>' +
+            '</div>' +
+          '</div>' +
+          '<p class="note" id="map-help">지도에서 이름표를 하나 눌러 봐요.</p>' +
+        '</aside>' +
+      '</div>';
+
+    function paintMarks() {
+      var map = S().map;
+      DATA.places.forEach(function (p) {
+        var g = $('[data-id="' + p.id + '"]', root);
+        var t = $('[data-mark="' + p.id + '"]', root);
+        var done = placeDone(map[p.id]);
+        g.classList.toggle('is-done', !!done);
+        g.classList.toggle('is-natural', !!done && p.type === 'natural');
+        g.classList.toggle('is-human', !!done && p.type === 'human');
+        g.classList.toggle('is-selected', selected === p.id);
+        if (done) {
+          t.textContent = MARK[p.type];
+          t.setAttribute('data-testid', 'mark-' + p.id);
+        } else {
+          t.textContent = '';
+          t.removeAttribute('data-testid');
+        }
+      });
+      var count = DATA.places.filter(function (p) { return placeDone(map[p.id]); }).length;
+      $('#map-progress', root).textContent = DATA.places.length + '곳 중 ' + count + '곳을 표시했어요.';
+    }
+
+    function select(id) {
+      selected = id;
+      var p = placeById(id);
+      $('#choice-sheet', root).hidden = false;
+      $('#map-help', root).hidden = true;
+      $('#choice-q', root).innerHTML = '<strong>' + esc(window.Logic.topic(p.name)) + '</strong> 어떤 환경일까요?';
+      var m = S().map[id];
+      if (placeDone(m)) feedback('<strong>' + esc(p.name) + '</strong>: ' + MARK[p.type] + ' ' + LABEL[p.type] + '. ' + esc(p.reason), 'ok');
+      else feedback('');
+      paintMarks();
+    }
+
+    function choose(kind) {
+      if (!selected) return;
+      var p = placeById(selected);
+      var m = S().map[p.id] || { pick: null, tries: 0, correct: false };
+      if (placeDone(m)) { select(p.id); return; }
+      if (kind === p.type) {
+        store.update(function (s) { s.map[p.id] = { pick: kind, tries: m.tries + 1, correct: true }; });
+        feedback(ok(p.reason), 'ok');
+      } else if (m.tries === 0) {
+        store.update(function (s) { s.map[p.id] = { pick: kind, tries: 1, correct: false }; });
+        feedback('🤔 다시 생각해 봐요. ' + esc(p.hint), 'no');
+      } else {
+        store.update(function (s) { s.map[p.id] = { pick: p.type, tries: 2, correct: false }; });
+        feedback('정답은 <strong>' + MARK[p.type] + ' ' + LABEL[p.type] + '</strong>이에요. ' + esc(p.reason), 'no');
+      }
+      paintMarks();
+      updateNav();
+    }
+
+    $$('.place', root).forEach(function (g) {
+      g.addEventListener('click', function () { select(g.dataset.id); });
+      g.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select(g.dataset.id); }
+      });
+    });
+    $$('[data-choose]', root).forEach(function (b) {
+      b.addEventListener('click', function () { choose(b.dataset.choose); });
+    });
+    paintMarks();
+  }
+
   // ---------- 아직 만들지 않은 단계 ----------
   function stub(n) {
     return function (root) { root.innerHTML = heading(n, STEPS[n].name, ''); };
@@ -379,7 +467,7 @@
     1: renderIntro,
     2: renderAround,
     3: renderKinds,
-    4: stub(4),
+    4: renderMap,
     5: stub(5),
     6: stub(6),
     7: stub(7)
