@@ -198,6 +198,73 @@ step(5, '카드 나누기', async (page, ctx) => {
   assert.match(await heading(page), /정리 퀴즈/);
 });
 
+const KEY = 'social4-2-3-1-env-v1';
+const saved = page => page.evaluate(k => JSON.parse(localStorage.getItem(k)), KEY);
+
+async function answerCurrent(page, wantRight) {
+  const n = Number(await page.locator('#quiz-box').getAttribute('data-q'));
+  const st = await saved(page);
+  const list = (await page.locator('#quiz-box').getAttribute('data-phase')) === 'retry' ? st.quiz.retry.map(i => st.quiz.questions[i]) : st.quiz.questions;
+  const q = list[n];
+  const idx = wantRight ? q.choices.indexOf(q.answer) : q.choices.findIndex(c => c !== q.answer);
+  await tid(page, 'quiz-choice-' + idx).tap();
+  return q;
+}
+
+step(6, '정리 퀴즈', async page => {
+  assert.equal(await page.isDisabled('#next'), true);
+  const st = await saved(page);
+  assert.equal(st.quiz.questions.length, 10);
+  for (let i = 0; i < 10; i++) {
+    assert.match(await page.locator('#quiz-box').innerText(), new RegExp('문제 ' + (i + 1) + ' / 10'));
+    const right = i >= 2;
+    await answerCurrent(page, right);
+    assert.match(await page.locator('#feedback').innerText(), right ? /○ 맞아요/ : /✕/);
+    await tid(page, 'quiz-next').tap();
+  }
+  // 틀린 2문제를 다시 풀어요
+  assert.match(await page.locator('#quiz-box').innerText(), /틀린 문제 다시 풀기/);
+  for (let i = 0; i < 2; i++) {
+    await answerCurrent(page, true);
+    await tid(page, 'quiz-next').tap();
+  }
+  assert.match(await page.locator('#screen').innerText(), /8 \/ 10/);
+  // 새로고침해도 같은 문제
+  const before = (await saved(page)).quiz.questions.map(q => q.id).join();
+  await page.reload();
+  assert.equal((await saved(page)).quiz.questions.map(q => q.id).join(), before);
+  await next(page);
+  assert.match(await heading(page), /마무리/);
+});
+
+step(7, '마무리', async (page, ctx) => {
+  const text = await page.locator('#screen').innerText();
+  assert.match(text, /김하람/);
+  assert.match(await tid(page, 'score').innerText(), /8 \/ 10/);
+  assert.match(text, /환경 탐험대/);
+  assert.match(text, /숲속 연못[\s\S]*○ 자연환경/);
+  assert.match(text, /공원[\s\S]*△ 인문환경/);
+  assert.equal(await page.locator('[data-testid=map-preview] .place-mark').evaluateAll(els => els.filter(e => e.textContent).length), 14);
+  assert.match(text, /카드 나누기/);
+  await page.fill('[data-testid=learned]', '논과 밭은 사람이 만든 인문환경이에요.');
+  await page.reload();
+  assert.equal(await page.inputValue('[data-testid=learned]'), '논과 밭은 사람이 만든 인문환경이에요.');
+
+  // 이미지 저장 라이브러리를 못 받았을 때
+  await page.route('**/cdnjs.cloudflare.com/**', r => r.abort());
+  await page.reload();
+  await tid(page, 'save-image').tap();
+  assert.match(await page.locator('#feedback').innerText(), /인쇄[\s\S]*PDF/);
+
+  // 인쇄할 때는 버튼과 단계 줄을 숨겨요
+  await page.emulateMedia({ media: 'print' });
+  assert.equal(await page.locator('#stepper').isVisible(), false);
+  assert.equal(await tid(page, 'print').isVisible(), false);
+  assert.equal(await page.locator('#nav').isVisible(), false);
+  assert.equal(await tid(page, 'score').isVisible(), true);
+  await page.emulateMedia({ media: 'screen' });
+});
+
 module.exports = { step, steps, tid, next, heading };
 
 async function run() {

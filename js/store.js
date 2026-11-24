@@ -14,7 +14,7 @@ if (typeof window === 'undefined') global.window = global;
       map: {},
       cards: {},
       cardOrder: [],
-      quiz: { questions: [], answers: {}, retry: [], retryAnswers: {}, done: false },
+      quiz: { questions: [], answers: {}, retry: [], retryAnswers: {}, retryStarted: false, done: false },
       learned: ''
     };
   }

@@ -537,6 +537,184 @@
     return function () { drag.destroy(); };
   }
 
+
+  // ---------- 6. 정리 퀴즈 ----------
+  var QTYPE = { kind: '자연환경일까? 인문환경일까?', ox: 'OX 퀴즈', blank: '빈칸 채우기', reason: '까닭 고르기', pickNot: '아닌 것 고르기' };
+
+  function quizScore(q) {
+    return q.questions.filter(function (_, i) { return q.answers[i] && q.answers[i].correct; }).length;
+  }
+
+  // 지금 풀 문제: {phase:'main'|'retry'|'done', pos, q}
+  function quizPosition() {
+    var q = S().quiz, i;
+    for (i = 0; i < q.questions.length; i++) if (!q.answers[i]) return { phase: 'main', pos: i, q: q.questions[i] };
+    if (!q.done) {
+      for (i = 0; i < q.retry.length; i++) if (!q.retryAnswers[i]) return { phase: 'retry', pos: i, q: q.questions[q.retry[i]] };
+    }
+    return { phase: 'done' };
+  }
+
+  function finishIfComplete() {
+    store.update(function (s) {
+      var q = s.quiz;
+      var mainDone = q.questions.every(function (_, i) { return q.answers[i]; });
+      if (!mainDone || q.done) return;
+      if (!q.retry.length && !q.retryStarted) {
+        q.retry = q.questions.map(function (_, i) { return i; }).filter(function (i) { return !q.answers[i].correct; });
+        q.retryStarted = true;
+      }
+      if (q.retry.every(function (_, j) { return q.retryAnswers[j]; })) q.done = true;
+    });
+  }
+
+  function renderQuiz(root) {
+    if (!S().quiz.questions.length) {
+      store.update(function (s) { s.quiz.questions = window.Logic.buildQuiz(DATA, CONFIG.quizCount, Math.random); });
+    }
+    finishIfComplete();
+    root.innerHTML = heading(6, '정리 퀴즈', '오늘 배운 것을 퀴즈로 확인해 봐요. 틀린 문제는 마지막에 한 번 더 풀어요.') +
+      '<div id="quiz-box" class="quiz-box"></div>';
+
+    function paint() {
+      var box = $('#quiz-box', root);
+      var at = quizPosition();
+      var total = S().quiz.questions.length;
+      if (at.phase === 'done') {
+        var q = S().quiz;
+        box.removeAttribute('data-q');
+        box.setAttribute('data-phase', 'done');
+        box.innerHTML = '<div class="quiz-done"><p class="quiz-done-title">🎉 퀴즈를 다 풀었어요!</p>' +
+          '<p class="quiz-score">내 점수 <strong>' + quizScore(q) + ' / ' + total + '</strong></p>' +
+          '<ol class="quiz-review">' + q.questions.map(function (qq, i) {
+            var a = q.answers[i];
+            return '<li><span class="' + (a.correct ? 'mark-ok' : 'mark-no') + '">' + (a.correct ? '○' : '✕') + '</span> ' + esc(qq.question) + '</li>';
+          }).join('') + '</ol></div>';
+        updateNav();
+        return;
+      }
+      var list = at.phase === 'retry' ? S().quiz.retry.length : total;
+      box.setAttribute('data-phase', at.phase);
+      box.setAttribute('data-q', String(at.pos));
+      box.innerHTML =
+        '<p class="quiz-progress">' + (at.phase === 'retry' ? '🔁 틀린 문제 다시 풀기 ' + (at.pos + 1) + ' / ' + list : '문제 ' + (at.pos + 1) + ' / ' + total) +
+          ' <span class="quiz-type">' + esc(QTYPE[at.q.type] || '') + '</span></p>' +
+        '<p class="quiz-question">' + esc(at.q.question) + '</p>' +
+        '<div class="quiz-choices' + (at.q.choices.length > 2 ? ' is-many' : '') + '">' + at.q.choices.map(function (c, k) {
+          return '<button type="button" class="btn btn-ghost quiz-choice" data-testid="quiz-choice-' + k + '" data-k="' + k + '">' + esc(c) + '</button>';
+        }).join('') + '</div>' +
+        '<div class="quiz-actions"><button type="button" class="btn btn-primary" data-testid="quiz-next" hidden>다음 문제 ▶</button></div>';
+
+      var answered = false;
+      $$('.quiz-choice', box).forEach(function (b) {
+        b.addEventListener('click', function () {
+          if (answered) return;
+          answered = true;
+          var pick = at.q.choices[Number(b.dataset.k)];
+          var right = window.Logic.grade(at.q, pick);
+          store.update(function (s) {
+            var rec = { pick: pick, correct: right };
+            if (at.phase === 'main') s.quiz.answers[at.pos] = rec; else s.quiz.retryAnswers[at.pos] = rec;
+          });
+          $$('.quiz-choice', box).forEach(function (o) {
+            o.disabled = true;
+            var c = at.q.choices[Number(o.dataset.k)];
+            if (c === at.q.answer) o.classList.add('is-right');
+            else if (o === b) o.classList.add('is-wrong');
+          });
+          feedback(right ? ok(at.q.explain) : '<span class="mark-no">✕ 아쉬워요.</span> 정답은 <strong>' + esc(at.q.answer) + '</strong>이에요. ' + esc(at.q.explain), right ? 'ok' : 'no');
+          var nextBtn = $('[data-testid=quiz-next]', box);
+          finishIfComplete();
+          var after = quizPosition();
+          nextBtn.textContent = after.phase === 'done' ? '결과 보기 ▶' : (after.phase === 'retry' && at.phase === 'main' ? '틀린 문제 다시 풀기 ▶' : '다음 문제 ▶');
+          nextBtn.hidden = false;
+          nextBtn.focus();
+        });
+      });
+      $('[data-testid=quiz-next]', box).addEventListener('click', function () {
+        feedback('');
+        paint();
+      });
+      updateNav();
+    }
+    paint();
+  }
+
+  // ---------- 7. 마무리 ----------
+  function renderWrap(root) {
+    var st = S();
+    var q = st.quiz;
+    var total = q.questions.length || CONFIG.quizCount;
+    var ponds = [['forest', '뒷산 숲속 연못', 'natural'], ['park', '공원 한가운데 연못', 'human']];
+    var placedBy = function (kind) {
+      return st.cardOrder.filter(function (id) { return st.cards[id] && st.cards[id].correct && cardById(id).type === kind; })
+        .map(function (id) { return esc(cardById(id).name); }).join(', ') || '없음';
+    };
+    var firstTry = DATA.places.filter(function (p) { var m = st.map[p.id]; return m && m.correct && m.tries === 1; }).length;
+
+    root.innerHTML =
+      '<div id="record" class="record">' +
+        heading(7, '마무리', '오늘 내가 한 활동을 모아 봤어요.') +
+        '<div class="badge">' +
+          '<div class="badge-medal" aria-hidden="true">🏅</div>' +
+          '<div><p class="badge-title">우리 동네 환경 탐험대</p>' +
+          '<p class="badge-name">' + esc(st.student.no ? st.student.no + '번 ' : '') + esc(st.student.name) + '</p></div>' +
+          '<div class="badge-score"><span>퀴즈 점수</span><strong data-testid="score">' + quizScore(q) + ' / ' + total + '</strong></div>' +
+        '</div>' +
+        '<section class="rec"><h3>① 궁금한 연못</h3>' + ponds.map(function (p) {
+          var mine = st.intro.ponds[p[0]];
+          return '<p><strong>' + p[1] + '</strong> → 정답 <span class="kind-' + p[2] + '">' + MARK[p[2]] + ' ' + LABEL[p[2]] + '</span> · ' +
+            '내 생각: ' + (mine.pick === 'natural' ? '자연이 만들었어요' : mine.pick === 'human' ? '사람이 만들었어요' : '-') +
+            (mine.why ? ' (' + esc(mine.why) + ')' : '') + '</p>';
+        }).join('') + '</section>' +
+        '<section class="rec"><h3>④ 그림 지도</h3><p>14곳 중 <strong>' + firstTry + '곳</strong>을 한 번에 맞혔어요.</p>' +
+          '<div class="map-preview" data-testid="map-preview">' + window.Art.townMap(DATA.places) + '</div></section>' +
+        '<section class="rec"><h3>⑤ 카드 나누기</h3>' +
+          '<p><span class="kind-natural">○ 자연환경</span>: ' + placedBy('natural') + '</p>' +
+          '<p><span class="kind-human">△ 인문환경</span>: ' + placedBy('human') + '</p></section>' +
+        '<section class="rec"><h3>오늘 알게 된 점</h3>' +
+          '<textarea data-testid="learned" id="learned" placeholder="예) 논과 밭은 사람이 만든 인문환경이라는 것을 알게 되었어요.">' + esc(st.learned) + '</textarea></section>' +
+      '</div>' +
+      '<div class="wrap-actions no-print">' +
+        '<button type="button" class="btn btn-ghost" data-testid="print">🖨️ 인쇄하기</button>' +
+        '<button type="button" class="btn btn-ghost" data-testid="save-image">🖼️ 이미지로 저장</button>' +
+      '</div>';
+
+    var preview = $('[data-testid=map-preview]', root);
+    $$('.place', preview).forEach(function (g) {
+      g.removeAttribute('tabindex'); g.removeAttribute('role');
+      var p = placeById(g.dataset.id), m = st.map[p.id];
+      if (m && (m.correct || m.tries >= 2)) {
+        g.classList.add('is-done', 'is-' + p.type);
+        $('[data-mark="' + p.id + '"]', g).textContent = MARK[p.type];
+      }
+    });
+
+    var learned = $('#learned', root);
+    learned.addEventListener('input', function () { store.update(function (s) { s.learned = learned.value; }); });
+    $('[data-testid=print]', root).addEventListener('click', function () { window.print(); });
+    $('[data-testid=save-image]', root).addEventListener('click', function () { saveImage($('#record', root)); });
+  }
+
+  function saveImage(target) {
+    var fallback = function () {
+      feedback('이미지로 저장하지 못했어요. <strong>인쇄하기</strong>를 누르고 프린터에서 <strong>PDF로 저장</strong>을 골라 저장해 주세요.', 'no');
+    };
+    if (!window.html2canvas) { fallback(); return; }
+    var name = S().student.name || '탐험대';
+    (document.fonts ? document.fonts.ready : Promise.resolve()).then(function () {
+      return window.html2canvas(target, { scale: 2, backgroundColor: '#fffdf6' });
+    }).then(function (canvas) {
+      var a = document.createElement('a');
+      a.download = '환경탐험대-' + name + '.png';
+      a.href = canvas.toDataURL('image/png');
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      feedback('이미지를 저장했어요.', 'ok');
+    }).catch(fallback);
+  }
+
   // ---------- 아직 만들지 않은 단계 ----------
   function stub(n) {
     return function (root) { root.innerHTML = heading(n, STEPS[n].name, ''); };
@@ -549,8 +727,8 @@
     3: renderKinds,
     4: renderMap,
     5: renderCards,
-    6: stub(6),
-    7: stub(7)
+    6: renderQuiz,
+    7: renderWrap
   };
 
   // ---------- 이벤트 ----------
