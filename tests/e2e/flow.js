@@ -66,6 +66,29 @@ step(2, '환경이 뭘까', async page => {
   assert.match(await heading(page), /환경의 두 가지/);
 });
 
+step(3, '환경의 두 가지', async page => {
+  assert.equal(await page.isDisabled('#next'), true);
+  await tid(page, 'tab-natural').tap();
+  const nat = await page.locator('#screen').innerText();
+  assert.match(nat, /땅의 생김새/);
+  assert.match(nat, /날씨/);
+  assert.match(nat, /날씨도 환경이에요/);
+  await tid(page, 'tab-human').tap();
+  const flips = ['paddy', 'farm', 'orchard', 'port', 'bridge', 'road'];
+  for (const f of flips) await tid(page, 'flip-' + f).tap();
+  assert.equal(await page.isDisabled('#next'), true, '6장만 뒤집으면 아직');
+  assert.match(await page.locator('#next-hint').innerText(), /1장/);
+  assert.equal(await tid(page, 'pond-answer').count(), 0, '다 뒤집기 전에는 연못 답이 없어요');
+  await tid(page, 'flip-apartment').tap();
+  assert.match(await tid(page, 'flip-bridge').innerText(), /건너/);
+  const ans = await tid(page, 'pond-answer').innerText();
+  assert.match(ans, /숲속 연못[\s\S]*○ 자연환경/);
+  assert.match(ans, /공원[\s\S]*△ 인문환경/);
+  assert.match(ans, /내 생각/);
+  await next(page);
+  assert.match(await heading(page), /그림 지도/);
+});
+
 module.exports = { step, steps, tid, next, heading };
 
 async function run() {

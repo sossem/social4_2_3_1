@@ -268,6 +268,107 @@
     renderSide();
   }
 
+
+  // ---------- 3. 환경의 두 가지 ----------
+  var NATURAL_GROUPS = [
+    { title: '땅의 생김새', items: [['산', '⛰️'], ['들', '🌼'], ['하천', '🏞️'], ['바다', '🌊']] },
+    { title: '날씨', items: [['눈', '❄️'], ['비', '🌧️'], ['바람', '🍃'], ['기온', '🌡️']] }
+  ];
+  var FLIP_EMOJI = { paddy: '🌾', farm: '🥬', orchard: '🍎', port: '⚓', bridge: '🌉', road: '🛣️', apartment: '🏢' };
+
+  function placeById(id) { return DATA.places.filter(function (p) { return p.id === id; })[0]; }
+
+  function renderKinds(root) {
+    root.innerHTML = heading(3, '환경의 두 가지', '환경은 크게 <strong>자연환경</strong>과 <strong>인문환경</strong>으로 나눌 수 있어요. 두 가지를 모두 눌러 봐요.') +
+      '<div class="tabs" role="tablist">' +
+        '<button type="button" role="tab" class="tab tab-natural" data-testid="tab-natural" data-tab="natural">○ 자연환경</button>' +
+        '<button type="button" role="tab" class="tab tab-human" data-testid="tab-human" data-tab="human">△ 인문환경</button>' +
+      '</div>' +
+      '<div id="tab-panel" class="tab-panel" role="tabpanel"></div>' +
+      '<div id="pond-slot"></div>';
+
+    var current = S().kinds.tabs[S().kinds.tabs.length - 1] || null;
+
+    function panelHtml(tab) {
+      if (!tab) return '<p class="note">위의 단추를 눌러 봐요.</p>';
+      if (tab === 'natural') {
+        return '<div class="kind-def kind-def-natural"><span class="kind-mark">○</span><div><h3>자연환경</h3>' +
+          '<p><strong>자연 그대로의 환경</strong>을 자연환경이라고 해요.</p></div></div>' +
+          '<div class="groups">' + NATURAL_GROUPS.map(function (g) {
+            return '<div class="group"><h3>' + esc(g.title) + '</h3><ul class="chips">' + g.items.map(function (it) {
+              return '<li class="chip chip-natural"><span aria-hidden="true">' + it[1] + '</span> ' + esc(it[0]) + '</li>';
+            }).join('') + '</ul></div>';
+          }).join('') + '</div>' +
+          '<p class="callout">☔ 눈, 비, 바람, 기온 같은 <strong>날씨도 환경이에요!</strong> 땅의 생김새와 날씨는 모두 자연 그대로의 환경이에요.</p>';
+      }
+      var flipped = S().kinds.flipped;
+      return '<div class="kind-def kind-def-human"><span class="kind-mark">△</span><div><h3>인문환경</h3>' +
+        '<p>사람들이 <strong>필요한 것을 얻거나 생활을 편리하게 하려고 만든 환경</strong>을 인문환경이라고 해요.</p></div></div>' +
+        '<p class="note">카드를 눌러 <strong>왜 만들었을까요?</strong>의 답을 확인해 봐요. (<span class="flip-count">' + flipped.length + ' / ' + window.Logic.FLIP_IDS.length + '</span>)</p>' +
+        '<div class="flips">' + window.Logic.FLIP_IDS.map(function (id) {
+          var p = placeById(id), open = flipped.indexOf(id) >= 0;
+          return '<button type="button" class="flip' + (open ? ' is-open' : '') + '" data-testid="flip-' + id + '" data-flip="' + id + '" aria-pressed="' + open + '">' +
+            '<span class="flip-front"><span class="flip-emoji" aria-hidden="true">' + FLIP_EMOJI[id] + '</span><strong>' + esc(p.name) + '</strong><small>왜 만들었을까요?</small></span>' +
+            (open ? '<span class="flip-back"><strong>' + esc(p.name) + '</strong>' + esc(p.reason) + '</span>' : '') +
+            '</button>';
+        }).join('') + '</div>';
+    }
+
+    function pondAnswer() {
+      if (!window.Logic.stepStatus(S(), 3, DATA, CONFIG).done) return '';
+      var ponds = S().intro.ponds;
+      var rows = [['forest', '뒷산 숲속 연못', 'natural', '산에서 흘러내린 물이 저절로 모여 생겼어요.'],
+                  ['park', '공원 한가운데 연못', 'human', '사람들이 공원을 꾸미려고 땅을 파고 돌을 둘러 만들었어요.']];
+      return '<div class="pond-answer" data-testid="pond-answer"><h3>🔎 미션 1의 답</h3>' + rows.map(function (r) {
+        var mine = ponds[r[0]].pick;
+        var same = mine === r[2];
+        return '<div class="pond-row">' +
+          '<p class="pond-name">' + r[1] + ' → <strong class="kind-' + r[2] + '">' + MARK[r[2]] + ' ' + LABEL[r[2]] + '</strong></p>' +
+          '<p class="note">' + esc(r[3]) + '</p>' +
+          '<p class="pond-mine">내 생각: ' + (mine === 'natural' ? '자연이 만들었어요' : '사람이 만들었어요') +
+          ' <span class="' + (same ? 'mark-ok' : 'mark-no') + '">' + (same ? '○ 맞혔어요!' : '✕ 다르게 생각했어요') + '</span></p></div>';
+      }).join('') +
+      '<p class="callout">같은 연못이라도 <strong>자연이 만든 것</strong>은 자연환경, <strong>사람이 만든 것</strong>은 인문환경이에요.</p></div>';
+    }
+
+    function paint() {
+      $$('.tab', root).forEach(function (t) {
+        var on = t.dataset.tab === current;
+        t.classList.toggle('is-active', on);
+        t.setAttribute('aria-selected', String(on));
+      });
+      $('#tab-panel', root).innerHTML = panelHtml(current);
+      $('#pond-slot', root).innerHTML = pondAnswer();
+      $$('[data-flip]', root).forEach(function (b) {
+        b.addEventListener('click', function () {
+          var id = b.dataset.flip;
+          if (S().kinds.flipped.indexOf(id) >= 0) return;
+          store.update(function (s) { s.kinds.flipped.push(id); });
+          var p = placeById(id);
+          // 앞면이 돌아가는 움직임이 보이도록 이 카드만 바꾼다.
+          b.insertAdjacentHTML('beforeend', '<span class="flip-back"><strong>' + esc(p.name) + '</strong>' + esc(p.reason) + '</span>');
+          void b.offsetWidth;
+          b.classList.add('is-open');
+          b.setAttribute('aria-pressed', 'true');
+          var count = $('.flip-count', root);
+          if (count) count.textContent = S().kinds.flipped.length + ' / ' + window.Logic.FLIP_IDS.length;
+          $('#pond-slot', root).innerHTML = pondAnswer();
+          updateNav();
+        });
+      });
+    }
+
+    $$('.tab', root).forEach(function (t) {
+      t.addEventListener('click', function () {
+        current = t.dataset.tab;
+        if (S().kinds.tabs.indexOf(current) < 0) store.update(function (s) { s.kinds.tabs.push(current); });
+        paint();
+        updateNav();
+      });
+    });
+    paint();
+  }
+
   // ---------- 아직 만들지 않은 단계 ----------
   function stub(n) {
     return function (root) { root.innerHTML = heading(n, STEPS[n].name, ''); };
@@ -277,7 +378,7 @@
     0: renderStart,
     1: renderIntro,
     2: renderAround,
-    3: stub(3),
+    3: renderKinds,
     4: stub(4),
     5: stub(5),
     6: stub(6),
