@@ -18,6 +18,19 @@ if (typeof window === 'undefined') global.window = global;
   }
   function topic(word) { return word + (hasFinal(word) ? '은' : '는'); }
   function object(word) { return word + (hasFinal(word) ? '을' : '를'); }
+  function copula(word) { return word + (hasFinal(word) ? '이에요' : '예요'); }
+  // 틀렸을 때 보여 줄 정답 문장. 문장으로 된 답(설명 고르기)은 조사를 붙이지 않는다.
+  function answerLine(q) {
+    if (q.type === 'reason') return '알맞은 답: ' + q.answer;
+    return '정답은 ' + copula(q.answer) + '.';
+  }
+  // '다리는 사람들이 …'에서 앞의 '다리는 '을 떼어 이름으로 답을 맞히지 못하게 한다.
+  function withoutSubject(item) {
+    var head = topic(item.name) + ' ';
+    return item.reason.indexOf(head) === 0 ? item.reason.slice(head.length) : item.reason;
+  }
+  // 다시 풀 때 보기 순서를 한 칸 돌린다(늘 처음과 다른 순서).
+  function retryChoices(choices) { return choices.slice(1).concat(choices.slice(0, 1)); }
 
   function stepStatus(state, step, data, config) {
     var left;
@@ -78,10 +91,11 @@ if (typeof window === 'undefined') global.window = global;
       choices: ['○', '✕'], answer: claim === item.type ? '○' : '✕', explain: item.reason };
   }
   function reasonQ(item, humans, rng) {
+    var answer = withoutSubject(item);
     var wrong = shuffle(humans.filter(function (h) { return h.id !== item.id; }), rng).slice(0, 3)
-      .map(function (h) { return h.reason; });
-    return { id: 'reason-' + item.id, type: 'reason', question: '사람들이 ' + object(item.name) + ' 만든 까닭으로 알맞은 것은 무엇일까요?',
-      choices: shuffle([item.reason].concat(wrong), rng), answer: item.reason, explain: item.reason };
+      .map(withoutSubject);
+    return { id: 'reason-' + item.id, type: 'reason', question: topic(item.name) + ' 어떤 곳일까요? 알맞은 설명을 골라요.',
+      choices: shuffle([answer].concat(wrong), rng), answer: answer, explain: item.reason };
   }
   function pickNotQ(odd, sameType, rng) {
     var three = shuffle(sameType, rng).slice(0, 3);
@@ -101,6 +115,8 @@ if (typeof window === 'undefined') global.window = global;
       return null;
     }
     var qs = shuffle(data.extra || [], rng).slice(0, Math.min(2, count));
+    // 직접 넣은 문제가 다루는 항목은 자동 문제에서 빼서 같은 것을 두 번 묻지 않는다.
+    qs.forEach(function (q) { (q.items || []).forEach(function (id) { used[id] = true; }); });
     var odd = take(items);
     if (odd && qs.length < count) qs.push(pickNotQ(odd, odd.type === 'natural' ? humans.filter(function (h) { return !used[h.id]; }) : naturals.filter(function (n) { return !used[n.id]; }), rng));
     var r = take(humans);
@@ -117,7 +133,7 @@ if (typeof window === 'undefined') global.window = global;
 
   function grade(q, pick) { return pick !== undefined && pick === q.answer; }
 
-  window.Logic = { isBlank: isBlank, topic: topic, object: object, stepStatus: stepStatus, buildQuiz: buildQuiz,
+  window.Logic = { isBlank: isBlank, topic: topic, object: object, copula: copula, answerLine: answerLine, retryChoices: retryChoices, stepStatus: stepStatus, buildQuiz: buildQuiz,
     grade: grade, shuffle: shuffle, LABEL: LABEL, FLIP_IDS: FLIP_IDS, AROUND_COUNT: AROUND_COUNT };
   if (typeof module !== 'undefined') module.exports = window.Logic;
 })();

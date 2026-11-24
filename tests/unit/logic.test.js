@@ -149,3 +149,48 @@ test('shuffle returns new array with same items', () => {
   assert.deepEqual([...b].sort(), a);
   assert.deepEqual(a, [1, 2, 3, 4, 5]);
 });
+
+test('reason choices do not give away the answer by name', () => {
+  const names = [...PLACES, ...CARDS].map(i => i.name);
+  for (let seed = 1; seed <= 60; seed++) {
+    Logic.buildQuiz(data, 10, seeded(seed)).filter(q => q.type === 'reason' && !q.id.startsWith('x-')).forEach(q => {
+      q.choices.forEach(c => {
+        names.forEach(n => assert.ok(!c.startsWith(n + '은 ') && !c.startsWith(n + '는 '), q.id + ': ' + c));
+      });
+    });
+  }
+});
+
+test('copula follows final consonant', () => {
+  assert.equal(Logic.copula('바다'), '바다예요');
+  assert.equal(Logic.copula('항구'), '항구예요');
+  assert.equal(Logic.copula('인문환경'), '인문환경이에요');
+  assert.equal(Logic.copula('논'), '논이에요');
+});
+
+test('answerLine reads naturally for every type', () => {
+  assert.equal(Logic.answerLine({ type: 'pickNot', answer: '아파트' }), '정답은 아파트예요.');
+  assert.equal(Logic.answerLine({ type: 'kind', answer: '자연환경' }), '정답은 자연환경이에요.');
+  const r = Logic.answerLine({ type: 'reason', answer: '하천을 쉽게 건너려고 사람들이 만들었어요.' });
+  assert.ok(!/이에요\.$|예요\.$/.test(r.replace(/만들었어요\.$/, '')), r);
+  assert.match(r, /하천을 쉽게 건너려고/);
+});
+
+test('extra questions block auto questions about the same item', () => {
+  assert.deepEqual(EXTRA.find(q => q.id === 'x-ox-paddy').items, ['paddy']);
+  assert.ok(EXTRA.find(q => q.id === 'x-pickNot-natural').items.includes('orchard'));
+  for (let seed = 1; seed <= 300; seed++) {
+    const qs = Logic.buildQuiz(data, 10, seeded(seed));
+    const extras = qs.filter(q => q.id.startsWith('x-'));
+    const blocked = new Set(extras.flatMap(q => q.items || []));
+    qs.filter(q => !q.id.startsWith('x-')).forEach(q => {
+      const itemId = q.id.slice(q.id.indexOf('-') + 1);
+      assert.ok(!blocked.has(itemId), 'seed ' + seed + ' ' + q.id);
+    });
+  }
+});
+
+test('retryChoices always changes the order', () => {
+  assert.deepEqual(Logic.retryChoices(['○', '✕']), ['✕', '○']);
+  assert.deepEqual(Logic.retryChoices(['a', 'b', 'c', 'd']), ['b', 'c', 'd', 'a']);
+});

@@ -244,7 +244,7 @@
           var q = CHECKS.filter(function (c) { return c.id === b.dataset.q; })[0];
           var right = b.dataset.v === q.answer;
           store.update(function (s) { s.around.check[q.id] = right; });
-          feedback(right ? ok(q.explain) : '<span class="mark-no">✕ 다시 생각해 봐요.</span> ' + esc(q.explain), right ? 'ok' : 'no');
+          feedback(right ? ok(q.explain) : '<span class="mark-no">✕ 아쉬워요.</span> 정답은 ' + (q.answer === 'o' ? '○' : '✕') + '예요. ' + esc(q.explain), right ? 'ok' : 'no');
           renderSide();
           updateNav();
         });
@@ -290,7 +290,7 @@
     var current = S().kinds.tabs[S().kinds.tabs.length - 1] || null;
 
     function panelHtml(tab) {
-      if (!tab) return '<p class="note">위의 단추를 눌러 봐요.</p>';
+      if (!tab) return '<p class="note">위의 버튼을 눌러 봐요.</p>';
       if (tab === 'natural') {
         return '<div class="kind-def kind-def-natural"><span class="kind-mark">○</span><div><h3>자연환경</h3>' +
           '<p><strong>자연 그대로의 환경</strong>을 자연환경이라고 해요.</p></div></div>' +
@@ -315,7 +315,8 @@
     }
 
     function pondAnswer() {
-      if (!window.Logic.stepStatus(S(), 3, DATA, CONFIG).done) return '';
+      var tabs = S().kinds.tabs;
+      if (tabs.indexOf('natural') < 0 || tabs.indexOf('human') < 0) return '';
       var ponds = S().intro.ponds;
       var rows = [['forest', '뒷산 숲속 연못', 'natural', '산에서 흘러내린 물이 저절로 모여 생겼어요.'],
                   ['park', '공원 한가운데 연못', 'human', '사람들이 공원을 꾸미려고 땅을 파고 돌을 둘러 만들었어요.']];
@@ -539,7 +540,7 @@
 
 
   // ---------- 6. 정리 퀴즈 ----------
-  var QTYPE = { kind: '자연환경일까? 인문환경일까?', ox: 'OX 퀴즈', blank: '빈칸 채우기', reason: '까닭 고르기', pickNot: '아닌 것 고르기' };
+  var QTYPE = { kind: '자연환경일까? 인문환경일까?', ox: 'OX 퀴즈', blank: '빈칸 채우기', reason: '알맞은 설명 고르기', pickNot: '아닌 것 고르기' };
 
   function quizScore(q) {
     return q.questions.filter(function (_, i) { return q.answers[i] && q.answers[i].correct; }).length;
@@ -594,13 +595,14 @@
         return;
       }
       var list = at.phase === 'retry' ? S().quiz.retry.length : total;
+      var shown = at.phase === 'retry' ? window.Logic.retryChoices(at.q.choices) : at.q.choices;
       box.setAttribute('data-phase', at.phase);
       box.setAttribute('data-q', String(at.pos));
       box.innerHTML =
         '<p class="quiz-progress">' + (at.phase === 'retry' ? '🔁 틀린 문제 다시 풀기 ' + (at.pos + 1) + ' / ' + list : '문제 ' + (at.pos + 1) + ' / ' + total) +
           ' <span class="quiz-type">' + esc(QTYPE[at.q.type] || '') + '</span></p>' +
         '<p class="quiz-question">' + esc(at.q.question) + '</p>' +
-        '<div class="quiz-choices' + (at.q.choices.length > 2 ? ' is-many' : '') + '">' + at.q.choices.map(function (c, k) {
+        '<div class="quiz-choices' + (shown.length > 2 ? ' is-many' : '') + '">' + shown.map(function (c, k) {
           return '<button type="button" class="btn btn-ghost quiz-choice" data-testid="quiz-choice-' + k + '" data-k="' + k + '">' + esc(c) + '</button>';
         }).join('') + '</div>' +
         '<div class="quiz-actions"><button type="button" class="btn btn-primary" data-testid="quiz-next" hidden>다음 문제 ▶</button></div>';
@@ -610,7 +612,7 @@
         b.addEventListener('click', function () {
           if (answered) return;
           answered = true;
-          var pick = at.q.choices[Number(b.dataset.k)];
+          var pick = shown[Number(b.dataset.k)];
           var right = window.Logic.grade(at.q, pick);
           store.update(function (s) {
             var rec = { pick: pick, correct: right };
@@ -618,11 +620,11 @@
           });
           $$('.quiz-choice', box).forEach(function (o) {
             o.disabled = true;
-            var c = at.q.choices[Number(o.dataset.k)];
+            var c = shown[Number(o.dataset.k)];
             if (c === at.q.answer) o.classList.add('is-right');
             else if (o === b) o.classList.add('is-wrong');
           });
-          feedback(right ? ok(at.q.explain) : '<span class="mark-no">✕ 아쉬워요.</span> 정답은 <strong>' + esc(at.q.answer) + '</strong>이에요. ' + esc(at.q.explain), right ? 'ok' : 'no');
+          feedback(right ? ok(at.q.explain) : '<span class="mark-no">✕ 아쉬워요.</span> <strong>' + esc(window.Logic.answerLine(at.q)) + '</strong> ' + esc(at.q.explain), right ? 'ok' : 'no');
           var nextBtn = $('[data-testid=quiz-next]', box);
           finishIfComplete();
           var after = quizPosition();

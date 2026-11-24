@@ -78,7 +78,10 @@ step(2, '환경이 뭘까', async page => {
   assert.equal(await page.isDisabled('#next'), true);
   for (let i = 0; i < 8; i++) await items.nth(i).tap();
   assert.match(await page.locator('#screen').innerText(), /우리를 둘러싸고 있는 모든 것/);
-  await tid(page, 'check-q1-x').tap();
+  await tid(page, 'check-q1-o').tap();
+  const wrong = await page.locator('#feedback').innerText();
+  assert.doesNotMatch(wrong, /다시 생각해/, '다시 풀 수 없는데 다시 생각하라고 하면 안 돼요');
+  assert.match(wrong, /정답은 ✕/);
   await tid(page, 'check-q2-o').tap();
   assert.match(await page.locator('#feedback').innerText(), /○|맞아요/);
   await next(page);
@@ -87,17 +90,19 @@ step(2, '환경이 뭘까', async page => {
 
 step(3, '환경의 두 가지', async page => {
   assert.equal(await page.isDisabled('#next'), true);
+  assert.doesNotMatch(await page.locator('#screen').innerText(), /단추/);
   await tid(page, 'tab-natural').tap();
   const nat = await page.locator('#screen').innerText();
   assert.match(nat, /땅의 생김새/);
   assert.match(nat, /날씨/);
   assert.match(nat, /날씨도 환경이에요/);
+  assert.equal(await tid(page, 'pond-answer').count(), 0, '탭 하나만 보면 아직 답이 없어요');
   await tid(page, 'tab-human').tap();
+  assert.equal(await tid(page, 'pond-answer').count(), 1, '두 탭을 다 보면 연못 답이 나와요');
   const flips = ['paddy', 'farm', 'orchard', 'port', 'bridge', 'road'];
   for (const f of flips) await tid(page, 'flip-' + f).tap();
   assert.equal(await page.isDisabled('#next'), true, '6장만 뒤집으면 아직');
   assert.match(await page.locator('#next-hint').innerText(), /1장/);
-  assert.equal(await tid(page, 'pond-answer').count(), 0, '다 뒤집기 전에는 연못 답이 없어요');
   await tid(page, 'flip-apartment').tap();
   assert.match(await tid(page, 'flip-bridge').innerText(), /건너/);
   const ans = await tid(page, 'pond-answer').innerText();
@@ -225,26 +230,32 @@ async function answerCurrent(page, wantRight) {
   const st = await saved(page);
   const list = (await page.locator('#quiz-box').getAttribute('data-phase')) === 'retry' ? st.quiz.retry.map(i => st.quiz.questions[i]) : st.quiz.questions;
   const q = list[n];
-  const idx = wantRight ? q.choices.indexOf(q.answer) : q.choices.findIndex(c => c !== q.answer);
-  await tid(page, 'quiz-choice-' + idx).tap();
-  return q;
+  const shown = await page.locator('.quiz-choice').allInnerTexts();
+  const want = wantRight ? q.answer : q.choices.find(c => c !== q.answer);
+  await tid(page, 'quiz-choice-' + shown.findIndex(t => t.trim() === want)).tap();
+  return { q, shown };
 }
 
 step(6, '정리 퀴즈', async page => {
+  const firstOrder = [];
   assert.equal(await page.isDisabled('#next'), true);
   const st = await saved(page);
   assert.equal(st.quiz.questions.length, 10);
   for (let i = 0; i < 10; i++) {
     assert.match(await page.locator('#quiz-box').innerText(), new RegExp('문제 ' + (i + 1) + ' / 10'));
     const right = i >= 2;
-    await answerCurrent(page, right);
-    assert.match(await page.locator('#feedback').innerText(), right ? /○ 맞아요/ : /✕/);
+    const r = await answerCurrent(page, right);
+    if (!right) firstOrder.push(r.shown.join('|'));
+    const fb = await page.locator('#feedback').innerText();
+    assert.match(fb, right ? /○ 맞아요/ : /✕/);
+    assert.doesNotMatch(fb, /(바다|비|도로|다리|항구|아파트|학교|등대|저수지|터널)이에요/, '조사가 틀렸어요: ' + fb);
     await tid(page, 'quiz-next').tap();
   }
   // 틀린 2문제를 다시 풀어요
   assert.match(await page.locator('#quiz-box').innerText(), /틀린 문제 다시 풀기/);
   for (let i = 0; i < 2; i++) {
-    await answerCurrent(page, true);
+    const r = await answerCurrent(page, true);
+    assert.notEqual(r.shown.join('|'), firstOrder[i], '다시 풀 때는 보기 순서가 달라요');
     await tid(page, 'quiz-next').tap();
   }
   assert.match(await page.locator('#screen').innerText(), /8 \/ 10/);
