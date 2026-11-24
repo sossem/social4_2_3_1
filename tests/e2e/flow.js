@@ -133,6 +133,71 @@ step(4, '그림 지도', async (page) => {
   assert.match(await heading(page), /카드 나누기/);
 });
 
+const CARDS = require('../../data/cards.js');
+const cardType = id => CARDS.find(c => c.id === id).type;
+const other = t => (t === 'natural' ? 'human' : 'natural');
+async function center(page, sel) {
+  const b = await page.locator(sel).boundingBox();
+  return [b.x + b.width / 2, b.y + b.height / 2];
+}
+async function deckIds(page) {
+  return page.locator('#deck [data-testid^=card-]').evaluateAll(els => els.map(e => e.dataset.testid.slice(5)));
+}
+async function count(page) { return (await tid(page, 'card-count').innerText()).trim(); }
+
+step(5, '카드 나누기', async (page, ctx) => {
+  assert.equal(await page.isDisabled('#next'), true);
+  let ids = await deckIds(page);
+  assert.equal(ids.length, 6, '카드 더미에 6장이 보여요');
+
+  // 1) 마우스로 끌어 놓기
+  let id = ids[0];
+  let [x, y] = await center(page, '[data-testid=card-' + id + ']');
+  let [tx, ty] = await center(page, '[data-testid=bin-' + cardType(id) + ']');
+  await page.mouse.move(x, y); await page.mouse.down();
+  await page.mouse.move(x + 15, y + 15, { steps: 3 }); await page.mouse.move(tx, ty, { steps: 12 }); await page.mouse.up();
+  assert.match(await page.locator('#feedback').innerText(), /○ 맞아요/);
+  assert.match(await count(page), /^맞게 놓은 카드 1 \/ 10/);
+
+  // 2) 손가락(터치)으로 끌어 놓기
+  ids = await deckIds(page);
+  id = ids[0];
+  [x, y] = await center(page, '[data-testid=card-' + id + ']');
+  [tx, ty] = await center(page, '[data-testid=bin-' + cardType(id) + ']');
+  const cdp = await ctx.newCDPSession(page);
+  const touch = (type, X, Y) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x: X, y: Y }] });
+  await touch('touchStart', x, y);
+  for (let i = 1; i <= 12; i++) await touch('touchMove', x + (tx - x) * i / 12, y + (ty - y) * i / 12);
+  await touch('touchEnd');
+  assert.match(await count(page), /^맞게 놓은 카드 2 \/ 10/);
+
+  // 3) 틀린 상자에 놓으면 힌트, 카드는 더미로 돌아와요
+  ids = await deckIds(page);
+  id = ids[0];
+  await tid(page, 'card-' + id).tap();
+  await tid(page, 'bin-' + other(cardType(id))).tap();
+  assert.match(await page.locator('#feedback').innerText(), /\?/);
+  assert.ok((await deckIds(page)).includes(id), '틀린 카드는 더미에 남아요');
+  assert.match(await count(page), /^맞게 놓은 카드 2 \/ 10/);
+
+  // 4) 누르고 상자 누르기로 나머지
+  while (true) {
+    const c = await count(page);
+    if (/^맞게 놓은 카드 10 /.test(c)) break;
+    id = (await deckIds(page))[0];
+    await tid(page, 'card-' + id).tap();
+    await tid(page, 'bin-' + cardType(id)).tap();
+  }
+  await page.waitForSelector('#next:not([disabled])');
+  assert.ok((await deckIds(page)).length > 0, '남은 카드는 더 해 보기로 계속 보여요');
+  assert.match(await page.locator('#screen').innerText(), /더 해 보기/);
+
+  await page.reload();
+  assert.match(await count(page), /^맞게 놓은 카드 10 \/ 10/);
+  await next(page);
+  assert.match(await heading(page), /정리 퀴즈/);
+});
+
 module.exports = { step, steps, tid, next, heading };
 
 async function run() {

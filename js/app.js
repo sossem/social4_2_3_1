@@ -457,6 +457,86 @@
     paintMarks();
   }
 
+
+  // ---------- 5. 카드 나누기 ----------
+  var DECK_SIZE = 6;
+  function cardById(id) { return DATA.cards.filter(function (c) { return c.id === id; })[0]; }
+
+  function cardFace(c) {
+    return (c.image ? '<img src="' + esc(c.image) + '" alt="" class="card-img">' : '<span class="card-emoji" aria-hidden="true">' + c.emoji + '</span>') +
+      '<span class="card-name">' + esc(c.name) + '</span>';
+  }
+
+  function renderCards(root) {
+    var ids = DATA.cards.map(function (c) { return c.id; });
+    var order = S().cardOrder;
+    var valid = order.length === ids.length && ids.every(function (id) { return order.indexOf(id) >= 0; });
+    if (!valid) store.update(function (s) { s.cardOrder = window.Logic.shuffle(ids, Math.random); });
+
+    root.innerHTML = heading(5, '카드 나누기', '카드를 끌어다 알맞은 상자에 놓아 봐요. 카드를 누르고 상자를 눌러도 돼요.') +
+      '<p class="card-count" data-testid="card-count" id="card-count"></p>' +
+      '<div id="board" class="board">' +
+        '<div id="deck" class="deck" aria-label="카드 더미"></div>' +
+        '<div class="bins">' +
+          '<div class="bin bin-natural" data-testid="bin-natural" data-bin="natural" role="button" aria-label="자연환경 상자">' +
+            '<p class="bin-title">○ 자연환경</p><ul class="bin-list" data-list="natural"></ul></div>' +
+          '<div class="bin bin-human" data-testid="bin-human" data-bin="human" role="button" aria-label="인문환경 상자">' +
+            '<p class="bin-title">△ 인문환경</p><ul class="bin-list" data-list="human"></ul></div>' +
+        '</div>' +
+      '</div>' +
+      '<p class="note" id="more-note" hidden>🎉 다음으로 갈 수 있어요! 남은 카드는 <strong>더 해 보기</strong>로 계속 나눠 봐요.</p>';
+
+    function paint() {
+      var st = S();
+      var placed = function (id) { return st.cards[id] && st.cards[id].correct; };
+      var left = st.cardOrder.filter(function (id) { return !placed(id); });
+      $('#deck', root).innerHTML = left.length ? left.slice(0, DECK_SIZE).map(function (id) {
+        var c = cardById(id);
+        return '<div class="card" data-testid="card-' + id + '" data-id="' + id + '" aria-label="' + esc(c.name) + '">' + cardFace(c) + '</div>';
+      }).join('') : '<p class="note">카드를 모두 나누었어요! 👏</p>';
+      ['natural', 'human'].forEach(function (kind) {
+        $('[data-list="' + kind + '"]', root).innerHTML = st.cardOrder.filter(function (id) {
+          return placed(id) && cardById(id).type === kind;
+        }).map(function (id) {
+          var c = cardById(id);
+          return '<li class="bin-chip"><span aria-hidden="true">' + c.emoji + '</span> ' + esc(c.name) + '</li>';
+        }).join('');
+      });
+      var ok = st.cardOrder.filter(placed).length;
+      $('#card-count', root).textContent = CONFIG.cardPassCount > 0
+        ? '맞게 놓은 카드 ' + Math.min(ok, CONFIG.cardPassCount) + ' / ' + CONFIG.cardPassCount + (ok > CONFIG.cardPassCount ? ' (모두 ' + ok + '장)' : '')
+        : '맞게 놓은 카드 ' + ok + '장';
+      $('#more-note', root).hidden = !(ok >= CONFIG.cardPassCount && left.length > 0);
+      if (drag) drag.refresh();
+    }
+
+    function place(item, zone) {
+      var c = cardById(item.dataset.id), kind = zone.dataset.bin;
+      var prev = S().cards[c.id] || { pick: null, correct: false, tries: 0 };
+      if (prev.correct) return;
+      var tries = prev.tries + 1;
+      if (kind === c.type) {
+        store.update(function (s) { s.cards[c.id] = { pick: kind, correct: true, tries: tries }; });
+        feedback(ok(c.reason), 'ok');
+      } else {
+        store.update(function (s) { s.cards[c.id] = { pick: kind, correct: false, tries: tries }; });
+        if (tries === 1) feedback('🤔 다시 생각해 봐요. <strong>' + esc(window.Logic.topic(c.name)) + '</strong> 사람이 만들었을까요?', 'no');
+        else feedback('정답은 <strong>' + MARK[c.type] + ' ' + LABEL[c.type] + '</strong>이에요. ' + esc(c.reason) + ' 알맞은 상자에 다시 놓아 봐요.', 'no');
+      }
+      paint();
+      updateNav();
+    }
+
+    var drag = window.PointerDrag.attach({
+      root: $('#board', root),
+      itemSelector: '.card',
+      zoneSelector: '.bin',
+      onDrop: place
+    });
+    paint();
+    return function () { drag.destroy(); };
+  }
+
   // ---------- 아직 만들지 않은 단계 ----------
   function stub(n) {
     return function (root) { root.innerHTML = heading(n, STEPS[n].name, ''); };
@@ -468,7 +548,7 @@
     2: renderAround,
     3: renderKinds,
     4: renderMap,
-    5: stub(5),
+    5: renderCards,
     6: stub(6),
     7: stub(7)
   };

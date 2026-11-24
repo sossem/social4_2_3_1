@@ -262,6 +262,38 @@ input:focus, textarea:focus, button:focus-visible, [tabindex]:focus-visible { ou
   .map-side { position: static; }
 }
 
+
+/* 4-2 카드 나누기 */
+.card-count { font-weight: 700; font-size: 20px; color: #7a4b00; margin: 8px 0 12px; }
+.board { display: grid; gap: 16px; }
+.deck { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; min-height: 140px; align-items: stretch; }
+.card {
+  display: grid; place-items: center; align-content: center; gap: 4px; min-height: 120px; padding: 10px;
+  background: #fff; border: 3px solid var(--line); border-radius: 16px; box-shadow: var(--shadow);
+  cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+  text-align: center;
+}
+.card-emoji { font-size: 44px; line-height: 1; }
+.card-img { width: 64px; height: 64px; object-fit: cover; border-radius: 10px; pointer-events: none; }
+.card-name { font-weight: 700; font-size: 19px; line-height: 1.25; }
+.card.is-picked { outline: 4px solid #8b5cf6; outline-offset: 2px; transform: translateY(-4px); }
+.card.is-dragging { opacity: .35; }
+.pd-ghost { box-shadow: 0 12px 28px rgba(0,0,0,.25); cursor: grabbing; }
+.bins { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.bin { min-height: 170px; border-radius: var(--radius); border: 4px dashed; padding: 12px 14px; transition: background .2s ease, transform .2s ease; cursor: pointer; }
+.bin-natural { border-color: var(--natural-line); background: #f4fbf5; }
+.bin-human { border-color: var(--human-line); background: #fff8f1; }
+.bin-title { font-family: var(--font-title); font-weight: 700; font-size: 26px; margin: 0 0 8px; }
+.bin-natural .bin-title { color: var(--natural); }
+.bin-human .bin-title { color: var(--human); }
+.bin.is-ready { border-style: solid; }
+.bin.is-over { transform: scale(1.02); }
+.bin-natural.is-over { background: var(--natural-soft); }
+.bin-human.is-over { background: var(--human-soft); }
+.bin-list { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.bin-chip { background: #fff; border-radius: 999px; padding: 4px 12px; font-weight: 600; font-size: 16px; animation: pop .35s ease; }
+@media (max-width: 900px) { .deck { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
 /* 화면 폭이 좁을 때(태블릿 세로) */
 @media (max-width: 1240px) {
   /* 단계 이름은 지금 단계만 보여 준다 */
