@@ -1,0 +1,95 @@
+#!/usr/bin/env node
+/*
+ * 전체 흐름 시험: 태블릿 가로(1024x768, 터치)로 앱을 처음부터 진행한다.
+ *   node tests/e2e/flow.js            모든 단계
+ *   node tests/e2e/flow.js --until 3  3단계 화면이 보일 때까지
+ */
+'use strict';
+const path = require('path');
+const assert = require('assert/strict');
+const { pathToFileURL } = require('url');
+const { chromium } = require('playwright');
+
+const URL = pathToFileURL(path.join(__dirname, '..', '..', 'index.html')).href;
+const untilArg = process.argv.indexOf('--until');
+const UNTIL = untilArg > 0 ? Number(process.argv[untilArg + 1]) : 99;
+
+function watchErrors(page) {
+  const errors = [];
+  page.on('console', m => { if (m.type() === 'error' && !m.text().startsWith('Failed to load resource')) errors.push(m.text()); });
+  page.on('pageerror', e => errors.push('pageerror: ' + e.message));
+  page.on('requestfailed', r => { if (r.url().startsWith('file:')) errors.push('missing file: ' + r.url()); });
+  return errors;
+}
+const tid = (page, id) => page.getByTestId(id);
+async function next(page) {
+  await page.waitForSelector('#next:not([disabled])');
+  await page.click('#next');
+}
+async function heading(page) { return (await page.locator('#screen h2').first().innerText()).trim(); }
+
+const steps = [];
+const step = (n, name, fn) => steps.push({ n, name, fn });
+
+step(0, '시작 화면', async page => {
+  assert.equal(await tid(page, 'start').isDisabled(), true, '이름이 비면 시작할 수 없어요');
+  await page.fill('#student-no', '7');
+  await page.fill('#student-name', '   ');
+  assert.equal(await tid(page, 'start').isDisabled(), true, '공백 이름은 빈 칸');
+  await page.fill('#student-name', '김하람');
+  await tid(page, 'start').tap();
+  assert.match(await heading(page), /연못/);
+});
+
+step(1, '궁금한 연못', async page => {
+  assert.equal(await page.isDisabled('#next'), true);
+  await tid(page, 'pick-forest-natural').tap();
+  await tid(page, 'pick-park-natural').tap();
+  await page.fill('[data-testid=why-forest]', '산에서 물이 흘러와서 생긴 것 같아요.');
+  assert.equal(await page.isDisabled('#next'), true, '까닭을 하나만 쓰면 아직');
+  await page.fill('[data-testid=why-park]', '분수가 있어서');
+  assert.equal(await page.locator('#screen').innerText().then(t => /사람이 만든 연못이에요|정답/.test(t)), false, '정답은 아직 보이면 안 돼요');
+  await next(page);
+  assert.match(await heading(page), /환경이 뭘까/);
+});
+
+step(2, '환경이 뭘까', async page => {
+  const items = page.locator('[data-testid^=around-]');
+  assert.equal(await items.count(), 8);
+  assert.equal(await page.isDisabled('#next'), true);
+  for (let i = 0; i < 8; i++) await items.nth(i).tap();
+  assert.match(await page.locator('#screen').innerText(), /우리를 둘러싸고 있는 모든 것/);
+  await tid(page, 'check-q1-x').tap();
+  await tid(page, 'check-q2-o').tap();
+  assert.match(await page.locator('#feedback').innerText(), /○|맞아요/);
+  await next(page);
+  assert.match(await heading(page), /환경의 두 가지/);
+});
+
+module.exports = { step, steps, tid, next, heading };
+
+async function run() {
+  const browser = await chromium.launch();
+  const ctx = await browser.newContext({ viewport: { width: 1024, height: 768 }, hasTouch: true, locale: 'ko-KR' });
+  const page = await ctx.newPage();
+  const errors = watchErrors(page);
+  await page.goto(URL);
+  let failed = false;
+  for (const s of steps) {
+    if (s.n > UNTIL) break;
+    try {
+      await s.fn(page, ctx);
+      console.log('ok   ' + s.n + ' ' + s.name);
+    } catch (e) {
+      failed = true;
+      console.log('FAIL ' + s.n + ' ' + s.name + '\n     ' + e.message.split('\n')[0]);
+      await page.screenshot({ path: path.join(__dirname, 'fail-' + s.n + '.png') }).catch(() => {});
+      break;
+    }
+  }
+  if (errors.length) { failed = true; console.log('FAIL console errors:\n  ' + errors.join('\n  ')); }
+  await browser.close();
+  console.log(failed ? 'RESULT: FAIL' : 'RESULT: PASS');
+  process.exit(failed ? 1 : 0);
+}
+if (require.main === module) run();

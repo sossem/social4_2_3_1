@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>우리 동네 환경 탐험대</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">🧭</span>
+      <span class="brand-name">우리 동네 환경 탐험대</span>
+    </div>
+    <nav id="stepper" class="stepper" aria-label="진행 단계"></nav>
+    <button id="reset" class="btn btn-ghost btn-reset" type="button">처음부터 다시</button>
+  </header>
+
+  <main class="wrap">
+    <section id="screen" class="screen" tabindex="-1"></section>
+    <div id="feedback" class="feedback" aria-live="polite"></div>
+    <footer id="nav" class="nav">
+      <button id="back" class="btn btn-ghost" type="button">◀ 이전</button>
+      <p id="next-hint" class="next-hint"></p>
+      <button id="next" class="btn btn-primary" type="button">다음 ▶</button>
+    </footer>
+  </main>
+
+  <script src="js/config.js"></script>
+  <script src="data/places.js"></script>
+  <script src="data/cards.js"></script>
+  <script src="data/quiz.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/logic.js"></script>
+  <script src="js/art.js"></script>
+  <script src="js/pointer-drag.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
